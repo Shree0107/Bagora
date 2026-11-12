@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/*
+ * Bagora theme tokens.
+ * Change a hex value here and every `bg-*`, `text-*`, `border-*` utility that
+ * uses it updates across the whole site (e.g. `bg-cream`, `text-espresso`).
+ */
+@theme {
+  /* Backgrounds & surfaces */
+  --color-cream: #faf6f0; /* page background */
+  --color-ivory: #f3ece2; /* cards, panels */
+  --color-sand: #e7dccd; /* borders, dividers */
+
+  /* Leather accents */
+  --color-tan: #c9a27e; /* subtle accents, hover */
+  --color-cognac: #9a4e1c; /* primary buttons, links */
+  --color-cognac-dark: #7a3d15; /* primary hover */
+  --color-saddle: #6f4e37; /* secondary headings */
+
+  /* Text */
+  --color-espresso: #2e211a; /* main text, footer */
+  --color-muted: #7d6b5d; /* captions, helper text */
+
+  /* Status colours (admin + order badges) */
+  --color-success: #4f6b3a;
+  --color-danger: #a23b2a;
+
+  /* Fonts are provided by next/font in layout.tsx */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-cream);
+    color: var(--color-espresso);
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background-color: var(--color-tan);
+    color: var(--color-espresso);
+  }
+}
