@@ -43,12 +43,36 @@ export function supabaseSecretKey(): string {
   return required("SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY);
 }
 
-/** Server only. */
-export function stripeSecretKey(): string {
-  return required("STRIPE_SECRET_KEY", process.env.STRIPE_SECRET_KEY);
+/** Server only. Razorpay "Key Id" (rzp_test_… / rzp_live_…). Also sent to the browser to open Checkout — it is not secret. */
+export function razorpayKeyId(): string {
+  return required("RAZORPAY_KEY_ID", process.env.RAZORPAY_KEY_ID);
 }
 
-/** Server only. */
-export function stripeWebhookSecret(): string {
-  return required("STRIPE_WEBHOOK_SECRET", process.env.STRIPE_WEBHOOK_SECRET);
+/** Server only. Razorpay "Key Secret". Used to create orders and verify payment signatures. */
+export function razorpayKeySecret(): string {
+  return required("RAZORPAY_KEY_SECRET", process.env.RAZORPAY_KEY_SECRET);
+}
+
+/** Server only. Secret you set when creating the Razorpay webhook. */
+export function razorpayWebhookSecret(): string {
+  return required("RAZORPAY_WEBHOOK_SECRET", process.env.RAZORPAY_WEBHOOK_SECRET);
+}
+
+/** Is Razorpay configured? (Online payment is unavailable otherwise; COD still works.) */
+export function isRazorpayConfigured(): boolean {
+  return Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && process.env.RAZORPAY_WEBHOOK_SECRET);
+}
+
+/** Optional public settings (features hide themselves when unset). */
+export const publicSettings = {
+  whatsappNumber: () => (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "").replace(/[^0-9]/g, ""),
+  supportEmail: () => process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "",
+};
+
+/** Invoice details (GST). The invoice page stays hidden until GSTIN + legal name + address are set. */
+export function invoiceSettings(): { gstin: string; legalName: string; address: string } | null {
+  const gstin = process.env.GSTIN?.trim();
+  const legalName = process.env.LEGAL_NAME?.trim();
+  const address = process.env.BUSINESS_ADDRESS?.trim();
+  return gstin && legalName && address ? { gstin, legalName, address } : null;
 }

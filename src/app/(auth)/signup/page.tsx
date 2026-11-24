@@ -4,22 +4,24 @@ import { redirect } from "next/navigation";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { SignupForm } from "@/components/auth/AuthForms";
 import { getCurrentUser, safeNextPath } from "@/lib/auth";
+import { getLocale } from "@/lib/locale";
 
 export const metadata: Metadata = { title: "Create account" };
 
 export default async function SignupPage({ searchParams }: PageProps<"/signup">) {
   const next = safeNextPath((await searchParams).next);
   if (await getCurrentUser()) redirect(next);
+  const { t } = await getLocale();
 
   return (
     <AuthCard
-      title="Create your account"
-      subtitle="Save your bag, check out faster and track your orders."
+      title={t("auth.createTitle")}
+      subtitle={t("auth.createSub")}
       footer={
         <>
-          Already have an account?{" "}
+          {t("auth.haveAccount")}{" "}
           <Link href={`/login?next=${encodeURIComponent(next)}`} className="text-cognac hover:underline">
-            Log in
+            {t("auth.login")}
           </Link>
         </>
       }

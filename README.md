@@ -1,15 +1,16 @@
-# Bagora
+# HouseOfSV
 
-An online handbag store built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS v4**, **Supabase** (database, auth and storage) and **Stripe Checkout**.
+An online handbag store built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS v4**, **Supabase** (database, auth and storage), **Stripe Checkout** (France) and **Razorpay** (India).
 
 👉 **First time? Follow [SETUP.md](./SETUP.md)** for step-by-step setup, deployment and going live.
 
 ## Features
 
+- Two shopping destinations: 🇫🇷 France (EUR, French/English, Stripe) and 🇮🇳 India (INR, English, Razorpay), with strict delivery-address rules per country
 - Home page, all-products page and category pages, with price/stock filters and sorting
 - Product pages with gallery and stock levels
 - A cart that works for guests and syncs to the account after login
-- Stripe Checkout with server-side price checks, plus a webhook that marks orders paid and reduces stock
+- Server-side prices, shipping and address validation; Stripe Checkout (France) and Razorpay (India), with payments verified on the server and by signed webhooks
 - Sign up, log in, log out, forgot/reset password, and an account page with order history
 - Admin area (role-based): add, edit and delete products, upload images, view orders and update their status
 - Row Level Security on every table

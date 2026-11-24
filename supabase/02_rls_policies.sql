@@ -1,5 +1,5 @@
 -- =============================================================================
--- Bagora — 02_rls_policies.sql
+-- VÉRANE — 02_rls_policies.sql
 -- Row Level Security on EVERY table. Run AFTER 01_schema.sql.
 -- Safe to re-run (policies are dropped and re-created).
 --
@@ -29,7 +29,8 @@ grant select on public.categories, public.products, public.product_images to ano
 grant insert, update, delete on public.categories, public.products, public.product_images to authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.cart_items to authenticated;
-grant select, update on public.orders to authenticated;
+grant select on public.orders to authenticated;
+grant update (status) on public.orders to authenticated;  -- admins change fulfilment status only (RLS limits to admins)
 grant select on public.order_items to authenticated;
 grant all on all tables in schema public to service_role;
 

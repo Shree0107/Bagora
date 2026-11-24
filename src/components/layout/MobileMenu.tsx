@@ -1,62 +1,122 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { CloseIcon, MenuIcon } from "./Icons";
 
-/** Hamburger menu shown on small screens only. */
-export function MobileMenu({
-  links,
-  isLoggedIn,
-  isAdmin,
-}: {
-  links: { href: string; label: string }[];
-  isLoggedIn: boolean;
-  isAdmin: boolean;
-}) {
+type L = { href: string; label: string };
+
+/** Full-height menu for small screens: the shelves in large signage, service links below. */
+export function MobileMenu({ shelves, links }: Readonly<{ shelves: L[]; links: L[] }>) {
   const [open, setOpen] = useState(false);
-  const close = () => setOpen(false);
+  const pathname = usePathname();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const all = [
-    ...links,
-    isLoggedIn ? { href: "/account", label: "My account" } : { href: "/login", label: "Log in" },
-    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
-  ];
+  // Close when navigating.
+  const [lastPath, setLastPath] = useState(pathname);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
+    setOpen(false);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.querySelector<HTMLElement>("a")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+      if (e.key === "Tab" && panelRef.current) {
+        const items = [...panelRef.current.querySelectorAll<HTMLElement>("a, button")];
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   return (
-    <div className="md:hidden">
+    <div className="lg:hidden">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen(true)}
         aria-expanded={open}
         aria-controls="mobile-menu"
-        aria-label={open ? "Close menu" : "Open menu"}
-        className="-ml-2 p-2 text-espresso"
+        aria-label="Open menu"
+        className="flex h-11 w-11 items-center justify-center text-sage hover:text-gilt-pale"
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-          {open ? (
-            <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
-          ) : (
-            <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-          )}
-        </svg>
+        <MenuIcon />
       </button>
 
       {open && (
-        <nav
+        <div
           id="mobile-menu"
-          aria-label="Mobile"
-          className="absolute inset-x-0 top-16 border-b border-sand bg-cream px-4 pb-6 shadow-sm"
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+          className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-forest px-6 pt-4 pb-10 text-ivory motion-safe:animate-[menu-in_400ms_var(--ease-out-quint)]"
         >
-          <ul className="flex flex-col divide-y divide-sand/70">
-            {all.map((l) => (
-              <li key={l.href}>
-                <Link href={l.href} onClick={close} className="block py-4 font-serif text-xl text-espresso">
-                  {l.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+          <div className="flex h-12 items-center justify-between">
+            <span className="sign text-[22px] text-gilt">Vérane</span>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                buttonRef.current?.focus();
+              }}
+              aria-label="Close menu"
+              className="-mr-2 flex h-11 w-11 items-center justify-center text-sage hover:text-gilt-pale"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          <div className="moulding mt-3 h-[5px]" aria-hidden />
+
+          <nav aria-label="Shelves" className="mt-8">
+            <ul className="space-y-1">
+              {shelves.map((s) => (
+                <li key={s.href}>
+                  <Link
+                    href={s.href}
+                    className="block py-2 font-display text-[40px] leading-tight text-ivory transition-colors hover:text-gilt-pale"
+                  >
+                    {s.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <nav aria-label="More" className="mt-auto pt-10">
+            <ul className="border-t border-gilt/40">
+              {links.map((l) => (
+                <li key={l.href} className="border-b border-gilt/20">
+                  <Link href={l.href} className="plate-label flex min-h-12 items-center text-sage hover:text-gilt-pale">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
       )}
     </div>
   );

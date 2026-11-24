@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/markets";
 import { button } from "@/components/ui/styles";
 import { FormMessage } from "@/components/ui/FormMessage";
 import { ProductImage } from "@/components/product/ProductImage";
@@ -61,7 +61,9 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
                     </div>
                   </td>
                   <td className="py-3 pr-4 text-saddle">{p.categories?.name ?? "—"}</td>
-                  <td className="py-3 pr-4 tabular-nums">{formatPrice(p.price_cents)}</td>
+                  <td className="py-3 pr-4 tabular-nums">
+                    {p.price_inr_paise === null ? <span className="text-muted">Not for sale</span> : formatMoney(p.price_inr_paise, "inr")}
+                  </td>
                   <td className={`py-3 pr-4 tabular-nums ${p.stock <= 3 ? "text-danger" : ""}`}>{p.stock}</td>
                   <td className="py-3 pr-4 text-xs">
                     {p.is_active ? <span className="text-success">Visible</span> : <span className="text-muted">Hidden</span>}

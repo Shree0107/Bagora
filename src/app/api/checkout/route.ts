@@ -1,22 +1,31 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStripe } from "@/lib/stripe";
-import { siteUrl } from "@/lib/env";
-import { CURRENCY, MAX_QTY_PER_ITEM, SHIPPING_COUNTRIES } from "@/lib/config";
+import { getRazorpay } from "@/lib/razorpay";
+import { isRazorpayConfigured, razorpayKeyId } from "@/lib/env";
+import { getLocale } from "@/lib/locale";
+import { rateLimit } from "@/lib/rate-limit";
+import { MAX_QTY_PER_ITEM, PREPAID_DISCOUNT_RATE, STORE_NAME } from "@/lib/config";
+import { includedTax, priceFor } from "@/lib/markets";
+import { getShippingMethod, shippingCost } from "@/lib/shipping";
+import { toOrderAddress, validateAddress } from "@/lib/address";
+import type { Order } from "@/types/database";
 
 /**
- * POST /api/checkout
- * Body: { items: [{ productId, quantity }] }  — NO prices are accepted.
+ * POST /api/checkout: create an order, then either a Razorpay payment
+ * (online, prepaid discount) or a Cash-on-Delivery order.
  *
- * 1. Requires a logged-in user.
- * 2. Loads every product from the database and checks it is active and in stock.
- * 3. Computes the total from database prices.
- * 4. Creates a "pending" order + order items (secret key, bypasses RLS).
- * 5. Creates a Stripe Checkout Session and returns its URL.
- * The order is marked "paid" later by the Stripe webhook, never here.
+ * Body: { items: [{productId, variantId, quantity}], address, shippingMethod, paymentMethod, checkoutKey }
+ * NO prices, discounts or shipping costs are accepted from the browser.
+ *
+ *  1. Logged-in user, rate-limited.
+ *  2. Address validated server-side (India rules).
+ *  3. Idempotent: the same checkoutKey returns the same order (no double orders).
+ *  4. Prices and stock per colour re-loaded from the database.
+ *  5. Online: 5% prepaid discount, Razorpay order; paid only after server-side
+ *     verification (/api/razorpay/verify or the webhook).
+ *     COD: place_cod_order() reserves stock and confirms the order at once.
  */
 
 const bodySchema = z.object({
@@ -24,144 +33,220 @@ const bodySchema = z.object({
     .array(
       z.object({
         productId: z.uuid(),
+        variantId: z.uuid(),
         quantity: z.number().int().min(1).max(MAX_QTY_PER_ITEM),
       }),
     )
     .min(1)
     .max(50),
+  address: z.unknown(),
+  shippingMethod: z.string().max(40),
+  paymentMethod: z.enum(["razorpay", "cod"]),
+  checkoutKey: z.uuid(),
 });
 
-function fail(message: string, status = 400) {
-  return NextResponse.json({ error: message }, { status });
+type Fail = { error: string; code?: string; fieldErrors?: Record<string, string> };
+const fail = (body: Fail, status = 400) => NextResponse.json(body, { status });
+
+/** 5% of the subtotal, rounded to the rupee (same as the cart preview). */
+function prepaidDiscount(subtotal: number): number {
+  return Math.round((subtotal * PREPAID_DISCOUNT_RATE) / 100) * 100;
 }
 
 export async function POST(request: Request) {
-  // 1. Auth
+  const { t } = await getLocale();
+
+  // 1. Auth + rate limit
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.email) return fail("Please log in to check out.", 401);
-
-  // 2. Validate input
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return fail("Your bag looks invalid. Please refresh and try again.");
-
-  // Merge duplicate lines, just in case.
-  const quantities = new Map<string, number>();
-  for (const i of parsed.data.items) {
-    quantities.set(i.productId, (quantities.get(i.productId) ?? 0) + i.quantity);
+  if (!user?.email) return fail({ error: t("cart.loginToCheckout"), code: "auth" }, 401);
+  if (!(await rateLimit(`checkout:${user.id}`, 10, 600))) {
+    return fail({ error: t("auth.err.generic"), code: "rate_limited" }, 429);
   }
+
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return fail({ error: t("auth.err.form") });
+  const { items, shippingMethod: methodId, paymentMethod, checkoutKey } = parsed.data;
+
+  if (paymentMethod === "razorpay" && !isRazorpayConfigured()) {
+    console.error("Checkout blocked: Razorpay is not configured");
+    return fail({ error: t("checkout.onlineUnavailable"), code: "payments_unavailable" }, 503);
+  }
+
+  // 2. Address (server-side, same rules as the form)
+  const addr = validateAddress(parsed.data.address);
+  if (!addr.ok) {
+    const fieldErrors = Object.fromEntries(Object.entries(addr.errors).map(([k, key]) => [k, t(key as string)]));
+    return fail({ error: t("checkout.fixErrors"), code: "address", fieldErrors });
+  }
+  const method = getShippingMethod(methodId);
+  if (!method) return fail({ error: t("auth.err.form") });
 
   const admin = createAdminClient();
-  const { data: products, error: productsError } = await admin
-    .from("products")
-    .select("id, name, slug, price_cents, stock, is_active, product_images(url, sort_order)")
-    .in("id", [...quantities.keys()]);
-  if (productsError) return fail("Could not load products. Please try again.", 500);
 
-  // 3. Server-side price + stock checks
-  const lines = [];
-  for (const [productId, quantity] of quantities) {
-    const p = products.find((x) => x.id === productId);
-    if (!p || !p.is_active) return fail("An item in your bag is no longer available. Please remove it.");
-    if (quantity > p.stock) {
-      return fail(
-        p.stock === 0 ? `"${p.name}" is sold out.` : `Only ${p.stock} of "${p.name}" left. Please update your bag.`,
-      );
-    }
-    const image = [...p.product_images].sort((a, b) => a.sort_order - b.sort_order)[0]?.url ?? null;
-    lines.push({ product: p, quantity, image });
+  // 3. Idempotency: same checkout attempt -> same order
+  const existing = await findByCheckoutKey(user.id, checkoutKey);
+  if (existing) return resumeExisting(existing, user.email);
+
+  // 4. Products, colours, prices and stock from the database
+  const quantities = new Map<string, { productId: string; quantity: number }>();
+  for (const i of items) {
+    const prev = quantities.get(i.variantId)?.quantity ?? 0;
+    quantities.set(i.variantId, { productId: i.productId, quantity: prev + i.quantity });
   }
 
-  const subtotal = lines.reduce((sum, l) => sum + l.product.price_cents * l.quantity, 0);
-  const shipping = 0; // free shipping
-  const total = subtotal + shipping;
-  if (total < 50) return fail("Order total is too low to process."); // Stripe minimum is €0.50
+  const { data: variants, error: variantsError } = await admin
+    .from("product_variants")
+    .select(
+      "id, product_id, colour_name, stock, is_active, products!inner(id, name, slug, price_inr_paise, is_active, product_images(url, sort_order, variant_id))",
+    )
+    .in("id", [...quantities.keys()]);
+  if (variantsError) return fail({ error: t("auth.err.generic") }, 500);
 
-  // 4. Create the pending order
+  const lines = [];
+  for (const [variantId, { productId, quantity }] of quantities) {
+    const v = variants.find((x) => x.id === variantId);
+    const p = v?.products as unknown as
+      | { id: string; name: string; slug: string; price_inr_paise: number | null; is_active: boolean; product_images: { url: string; sort_order: number; variant_id: string | null }[] }
+      | undefined;
+    const price = p ? priceFor(p) : null;
+    if (!v || !p || p.id !== productId || !v.is_active || !p.is_active || price === null) {
+      return fail({ error: t("cart.unavailable"), code: "unavailable" });
+    }
+    if (quantity > v.stock) {
+      return fail({
+        error:
+          v.stock === 0
+            ? `${p.name} (${v.colour_name}): ${t("product.soldOut")}`
+            : `${p.name} (${v.colour_name}): ${t("cart.onlyAvailable", { count: v.stock })}`,
+        code: "stock",
+      });
+    }
+    const imgs = [...p.product_images].sort((a, b) => a.sort_order - b.sort_order);
+    const image = (imgs.find((i) => i.variant_id === v.id) ?? imgs.find((i) => !i.variant_id) ?? imgs[0])?.url ?? null;
+    lines.push({ product: p, variant: v, price, quantity, image });
+  }
+
+  const subtotal = lines.reduce((sum, l) => sum + l.price * l.quantity, 0);
+  const shipping = shippingCost(method, subtotal);
+  const discount = paymentMethod === "razorpay" ? prepaidDiscount(subtotal) : 0;
+  const total = subtotal + shipping - discount;
+  if (total < 100) return fail({ error: t("auth.err.generic") }); // Razorpay minimum ₹1
+
+  // 5a. Pending order
   const { data: order, error: orderError } = await admin
     .from("orders")
     .insert({
       user_id: user.id,
       email: user.email,
-      status: "pending",
+      market: "in",
+      language: "en",
+      currency: "inr",
+      payment_provider: paymentMethod,
       subtotal_cents: subtotal,
       shipping_cents: shipping,
+      discount_cents: discount,
+      tax_cents: includedTax(total),
+      prices_include_tax: true,
       total_cents: total,
-      currency: CURRENCY,
+      shipping_method: method.id,
+      shipping_address: toOrderAddress(addr.address),
+      checkout_key: checkoutKey,
     })
-    .select("id")
+    .select("*")
     .single();
-  if (orderError || !order) return fail("Could not create your order. Please try again.", 500);
+
+  if (orderError) {
+    // Unique (user_id, checkout_key): a parallel duplicate request won the race.
+    if (orderError.code === "23505") {
+      const winner = await findByCheckoutKey(user.id, checkoutKey);
+      if (winner) return resumeExisting(winner, user.email);
+    }
+    console.error("order insert failed:", orderError.code);
+    return fail({ error: t("auth.err.generic") }, 500);
+  }
 
   const { error: itemsError } = await admin.from("order_items").insert(
     lines.map((l) => ({
       order_id: order.id,
       product_id: l.product.id,
+      variant_id: l.variant.id,
+      colour_name: l.variant.colour_name,
       product_name: l.product.name,
       product_slug: l.product.slug,
       image_url: l.image,
-      unit_price_cents: l.product.price_cents,
+      unit_price_cents: l.price,
       quantity: l.quantity,
     })),
   );
   if (itemsError) {
     await admin.from("orders").delete().eq("id", order.id);
-    return fail("Could not create your order. Please try again.", 500);
+    return fail({ error: t("auth.err.generic") }, 500);
   }
 
-  // 5. Stripe Checkout Session
-  const base = siteUrl();
-  // Stripe can only show product images from public https URLs.
-  const absoluteImage = (url: string | null) => {
-    if (!url) return undefined;
-    const full = url.startsWith("http") ? url : `${base}${url}`;
-    return full.startsWith("https://") ? [full] : undefined;
-  };
+  // 5b. Cash on Delivery: reserve stock + confirm now.
+  if (paymentMethod === "cod") {
+    const { error } = await admin.rpc("place_cod_order", { p_order_id: order.id });
+    if (error) {
+      await admin.from("orders").delete().eq("id", order.id);
+      const stock = error.message.includes("insufficient_stock");
+      return fail({ error: stock ? t("checkout.stockChanged") : t("auth.err.generic"), code: stock ? "stock" : "cod_error" }, stock ? 409 : 500);
+    }
+    return NextResponse.json({ provider: "cod", orderId: order.id });
+  }
 
-  let session: Stripe.Checkout.Session;
+  // 5c. Online: Razorpay order
   try {
-    session = await getStripe().checkout.sessions.create({
-      mode: "payment",
-      customer_email: user.email,
-      client_reference_id: order.id,
-      metadata: { order_id: order.id, user_id: user.id },
-      payment_intent_data: { metadata: { order_id: order.id } },
-      line_items: lines.map((l) => ({
-        quantity: l.quantity,
-        price_data: {
-          currency: CURRENCY,
-          unit_amount: l.product.price_cents,
-          product_data: { name: l.product.name, images: absoluteImage(l.image) },
-        },
-      })),
-      shipping_address_collection: { allowed_countries: [...SHIPPING_COUNTRIES] },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            type: "fixed_amount",
-            display_name: "Free shipping",
-            fixed_amount: { amount: shipping, currency: CURRENCY },
-            delivery_estimate: {
-              minimum: { unit: "business_day", value: 3 },
-              maximum: { unit: "business_day", value: 7 },
-            },
-          },
-        },
-      ],
-      success_url: `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/checkout/cancel`,
-      expires_at: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour
+    const rzpOrder = await getRazorpay().orders.create({
+      amount: total,
+      currency: "INR",
+      receipt: order.id.slice(0, 40),
+      notes: { order_id: order.id },
     });
+    await admin.from("orders").update({ razorpay_order_id: rzpOrder.id }).eq("id", order.id);
+    return NextResponse.json(razorpayPayload({ ...order, razorpay_order_id: rzpOrder.id }, user.email));
   } catch (err) {
-    console.error("Stripe session error", err);
+    console.error(`razorpay order error for ${order.id}:`, err instanceof Error ? err.message : "unknown");
     await admin.from("orders").delete().eq("id", order.id);
-    return fail("Payment could not be started. Please try again.", 502);
+    return fail({ error: t("auth.err.generic"), code: "provider_error" }, 502);
   }
+}
 
-  await admin.from("orders").update({ stripe_session_id: session.id }).eq("id", order.id);
+async function findByCheckoutKey(userId: string, key: string): Promise<Order | null> {
+  const { data } = await createAdminClient()
+    .from("orders")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("checkout_key", key)
+    .maybeSingle();
+  return data;
+}
 
-  if (!session.url) return fail("Payment could not be started. Please try again.", 502);
-  return NextResponse.json({ url: session.url });
+/** Same checkout attempt submitted again (double click / retry): reuse it. */
+async function resumeExisting(order: Order, email: string) {
+  if (order.payment_status === "paid") return NextResponse.json({ alreadyPaid: true, orderId: order.id });
+  if (order.status === "cancelled") return fail({ error: "expired", code: "expired" }, 409);
+  if (order.payment_provider === "cod" && order.status !== "pending") {
+    return NextResponse.json({ provider: "cod", orderId: order.id });
+  }
+  if (order.payment_provider === "razorpay" && order.razorpay_order_id) {
+    return NextResponse.json(razorpayPayload(order, email));
+  }
+  return fail({ error: "expired", code: "expired" }, 409);
+}
+
+function razorpayPayload(order: Order, email: string) {
+  const addr = order.shipping_address as { name?: string; phone?: string } | null;
+  return {
+    provider: "razorpay" as const,
+    orderId: order.id,
+    keyId: razorpayKeyId(),
+    razorpayOrderId: order.razorpay_order_id,
+    amount: order.total_cents,
+    currency: "INR",
+    name: STORE_NAME,
+    prefill: { name: addr?.name ?? "", email, contact: addr?.phone ?? "" },
+  };
 }

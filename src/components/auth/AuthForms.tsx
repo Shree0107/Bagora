@@ -12,6 +12,7 @@ import {
 import { FormMessage } from "@/components/ui/FormMessage";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { button, input, label } from "@/components/ui/styles";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 
 function Field({
   name,
@@ -45,67 +46,71 @@ function Field({
 }
 
 export function LoginForm({ next, linkError }: { next: string; linkError?: boolean }) {
+  const { t } = useLocale();
   const [state, action] = useActionState<FormState, FormData>(signInAction, null);
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="next" value={next} />
       {linkError && !state && (
-        <FormMessage error="That link is invalid or has expired. Please log in or request a new link." />
+        <FormMessage error={t("auth.linkError")} />
       )}
       <FormMessage error={state?.error} />
-      <Field name="email" type="email" text="Email" autoComplete="email" />
-      <Field name="password" type="password" text="Password" autoComplete="current-password" />
+      <Field name="email" type="email" text={t("auth.email")} autoComplete="email" />
+      <Field name="password" type="password" text={t("auth.password")} autoComplete="current-password" />
       <div className="text-right">
         <Link href="/forgot-password" className="text-xs text-cognac hover:underline">
-          Forgot password?
+          {t("auth.forgotPassword")}
         </Link>
       </div>
-      <SubmitButton className={`${button.primary} w-full`} pendingText="Logging in…">
-        Log in
+      <SubmitButton className={`${button.primary} w-full`} pendingText={t("auth.loggingIn")}>
+        {t("auth.login")}
       </SubmitButton>
     </form>
   );
 }
 
 export function SignupForm({ next }: { next: string }) {
+  const { t } = useLocale();
   const [state, action] = useActionState<FormState, FormData>(signUpAction, null);
   if (state?.success) return <FormMessage success={state.success} />;
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="next" value={next} />
       <FormMessage error={state?.error} />
-      <Field name="fullName" text="Full name" autoComplete="name" />
-      <Field name="email" type="email" text="Email" autoComplete="email" />
-      <Field name="password" type="password" text="Password (min. 8 characters)" autoComplete="new-password" minLength={8} />
-      <SubmitButton className={`${button.primary} w-full`} pendingText="Creating account…">
-        Create account
+      <Field name="fullName" text={t("auth.fullName")} autoComplete="name" />
+      <Field name="email" type="email" text={t("auth.email")} autoComplete="email" />
+      <Field name="password" type="password" text={t("auth.passwordMin")} autoComplete="new-password" minLength={8} />
+      <SubmitButton className={`${button.primary} w-full`} pendingText={t("auth.creating")}>
+        {t("auth.create")}
       </SubmitButton>
     </form>
   );
 }
 
 export function ForgotPasswordForm() {
+  const { t } = useLocale();
   const [state, action] = useActionState<FormState, FormData>(forgotPasswordAction, null);
   return (
     <form action={action} className="space-y-5">
       <FormMessage error={state?.error} success={state?.success} />
-      <Field name="email" type="email" text="Email" autoComplete="email" />
-      <SubmitButton className={`${button.primary} w-full`} pendingText="Sending…">
-        Send reset link
+      <Field name="email" type="email" text={t("auth.email")} autoComplete="email" />
+      <SubmitButton className={`${button.primary} w-full`} pendingText={t("auth.sending")}>
+        {t("auth.sendLink")}
       </SubmitButton>
     </form>
   );
 }
 
 export function ResetPasswordForm() {
+  const { t } = useLocale();
   const [state, action] = useActionState<FormState, FormData>(updatePasswordAction, null);
   return (
     <form action={action} className="space-y-5">
       <FormMessage error={state?.error} />
-      <Field name="password" type="password" text="New password" autoComplete="new-password" minLength={8} />
-      <Field name="confirm" type="password" text="Confirm new password" autoComplete="new-password" minLength={8} />
-      <SubmitButton className={`${button.primary} w-full`} pendingText="Saving…">
-        Save new password
+      <Field name="password" type="password" text={t("auth.newPassword")} autoComplete="new-password" minLength={8} />
+      <Field name="confirm" type="password" text={t("auth.confirmPassword")} autoComplete="new-password" minLength={8} />
+      <SubmitButton className={`${button.primary} w-full`} pendingText={t("auth.saving")}>
+        {t("auth.savePassword")}
       </SubmitButton>
     </form>
   );

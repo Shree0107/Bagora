@@ -1,44 +1,44 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { Suspense } from "react";
-import { container, eyebrow } from "@/components/ui/styles";
-import { ProductGrid } from "@/components/product/ProductCard";
-import { ShopFilters } from "@/components/product/ShopFilters";
-import { CategoryTabs } from "@/components/product/CategoryTabs";
-import { getCategories, getCategoryBySlug, getProducts, parseFilters } from "@/lib/data/catalog";
+import { notFound, permanentRedirect } from "next/navigation";
+import { ShopView } from "@/components/product/ShopView";
+import { getCategoryBySlug, parseFilters } from "@/lib/data/catalog";
+import { siteUrl } from "@/lib/env";
+
+/** Old category URLs from before the relaunch. */
+const RENAMED: Record<string, string> = { backpacks: "work-bags" };
 
 export async function generateMetadata({ params }: PageProps<"/shop/[category]">): Promise<Metadata> {
   const category = await getCategoryBySlug((await params).category);
-  return { title: category?.name ?? "Category not found", description: category?.description };
+  if (!category) return { title: "Not found" };
+  return {
+    title: `${category.name} · Genuine leather`,
+    description: `${category.description} VÉRANE, prices in ₹ incl. GST.`,
+    alternates: { canonical: `/shop/${category.slug}` },
+  };
 }
 
 export default async function CategoryPage({ params, searchParams }: PageProps<"/shop/[category]">) {
   const { category: slug } = await params;
+  if (RENAMED[slug]) permanentRedirect(`/shop/${RENAMED[slug]}`);
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
 
-  const filters = parseFilters(await searchParams);
-  const [categories, products] = await Promise.all([
-    getCategories(),
-    getProducts({ ...filters, categorySlug: slug }),
-  ]);
+  const breadcrumb = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Shop", item: `${siteUrl()}/shop` },
+      { "@type": "ListItem", position: 2, name: category.name, item: `${siteUrl()}/shop/${category.slug}` },
+    ],
+  };
 
   return (
-    <div className={`${container} py-12 sm:py-16`}>
-      <p className={eyebrow}>Category</p>
-      <h1 className="mt-3 text-4xl text-espresso sm:text-5xl">{category.name}</h1>
-      {category.description && <p className="mt-3 max-w-xl text-sm text-muted">{category.description}</p>}
-
-      <div className="mt-8 space-y-6">
-        <CategoryTabs categories={categories} active={slug} />
-        <Suspense>
-          <ShopFilters />
-        </Suspense>
-      </div>
-
-      <div className="mt-10">
-        <ProductGrid products={products} />
-      </div>
-    </div>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb).replace(/</g, "\\u003c") }}
+      />
+      <ShopView category={category} filters={parseFilters(await searchParams)} />
+    </>
   );
 }

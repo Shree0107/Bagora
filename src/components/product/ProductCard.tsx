@@ -1,48 +1,83 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ProductImage } from "./ProductImage";
-import { formatPrice } from "@/lib/format";
+import { formatMoney, priceFor } from "@/lib/markets";
+import { slugColour } from "@/lib/data/catalog";
 import type { ProductWithImages } from "@/types/database";
 
-export function ProductCard({ product, priority = false }: { product: ProductWithImages; priority?: boolean }) {
-  const image = product.product_images[0];
+/**
+ * A bag on the shelf: 4:5 photo on its plinth (second photo fades in on hover),
+ * the name in display type, price, and the colours it comes in.
+ */
+export function ProductCard({
+  product,
+  priority = false,
+  sizes,
+}: Readonly<{ product: ProductWithImages; priority?: boolean; sizes?: string }>) {
+  const [first, second] = product.product_images;
+  const variants = product.product_variants;
   const soldOut = product.stock <= 0;
+  const price = priceFor(product);
+  const href = `/products/${product.slug}`;
 
   return (
-    <Link href={`/products/${product.slug}`} className="group block">
-      <div className="relative">
-        <ProductImage src={image?.url ?? null} alt={image?.alt || product.name} priority={priority} className="rounded-sm" />
-        {soldOut && (
-          <span className="absolute top-3 left-3 rounded-full bg-cream/90 px-3 py-1 text-[11px] uppercase tracking-wider text-saddle">
-            Sold out
-          </span>
-        )}
-      </div>
-      <div className="mt-4 flex items-start justify-between gap-4">
-        <div>
-          {product.categories && (
-            <p className="text-[11px] uppercase tracking-[0.2em] text-muted">{product.categories.name}</p>
+    <article className="group relative">
+      <Link href={href} className="block focus-visible:outline-offset-4">
+        <div className="relative">
+          <ProductImage src={first?.url ?? null} alt={first?.alt || product.name} priority={priority} sizes={sizes} />
+          {second && (
+            <Image
+              src={second.url}
+              alt=""
+              fill
+              sizes={sizes ?? "(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 50vw"}
+              className="hidden object-cover opacity-0 transition-opacity duration-700 ease-out sm:block sm:group-hover:opacity-100"
+            />
           )}
-          <h3 className="mt-1 font-serif text-xl text-espresso group-hover:text-cognac">{product.name}</h3>
+          {soldOut && (
+            <span className="plate-label absolute top-3 left-3 bg-ivory/90 px-3 py-1.5 text-espresso">Back soon</span>
+          )}
         </div>
-        <p className="mt-5 shrink-0 text-sm text-saddle">{formatPrice(product.price_cents)}</p>
+        <h3 className="mt-4 font-display text-[21px] leading-snug text-espresso transition-colors group-hover:text-forest sm:text-[23px]">
+          {product.name}
+        </h3>
+      </Link>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        {price !== null && <p className="tabular text-[15px] text-espresso">{formatMoney(price)}</p>}
+        {variants.length > 1 && (
+          <ul className="flex items-center gap-1.5" aria-label={`${variants.length} colours`}>
+            {variants.slice(0, 4).map((v) => (
+              <li key={v.id}>
+                <Link
+                  href={`${href}?colour=${slugColour(v.colour_name)}`}
+                  aria-label={`${product.name} in ${v.colour_name}${v.stock <= 0 ? ", back soon" : ""}`}
+                  className="relative block h-4 w-4 border border-espresso/20"
+                  style={{ backgroundColor: v.colour_hex }}
+                >
+                  {v.stock <= 0 && (
+                    <span aria-hidden className="absolute inset-0 bg-[linear-gradient(135deg,transparent_45%,var(--color-ivory)_45%,var(--color-ivory)_55%,transparent_55%)]" />
+                  )}
+                </Link>
+              </li>
+            ))}
+            {variants.length > 4 && <li className="text-[12px] text-muted">+{variants.length - 4}</li>}
+          </ul>
+        )}
+        {variants.length === 1 && <p className="text-[13px] text-muted">{variants[0].colour_name}</p>}
       </div>
-    </Link>
+    </article>
   );
 }
 
-export function ProductGrid({ products }: { products: ProductWithImages[] }) {
-  if (products.length === 0) {
-    return (
-      <div className="rounded-sm border border-dashed border-sand py-20 text-center">
-        <p className="font-serif text-2xl text-saddle">No bags found</p>
-        <p className="mt-2 text-sm text-muted">Try changing or clearing the filters.</p>
-      </div>
-    );
-  }
+export function ProductGrid({
+  products,
+  empty,
+}: Readonly<{ products: ProductWithImages[]; empty?: React.ReactNode }>) {
+  if (products.length === 0) return <>{empty}</>;
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-3 lg:gap-x-8">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-12 sm:gap-x-6 lg:grid-cols-3 lg:gap-x-10 lg:gap-y-16">
       {products.map((p, i) => (
-        <ProductCard key={p.id} product={p} priority={i < 3} />
+        <ProductCard key={p.id} product={p} priority={i < 2} />
       ))}
     </div>
   );

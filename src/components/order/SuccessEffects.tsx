@@ -6,11 +6,11 @@ import { useCart } from "@/components/cart/CartProvider";
 
 /**
  * Runs on the order success page:
- *  - empties the cart once
- *  - while the webhook hasn't marked the order paid yet, refreshes the page
- *    every 3 seconds (max ~30s)
+ *  - empties the bag once
+ *  - for an online payment the server hasn't confirmed yet, refreshes every
+ *    3 seconds (max ~30s) until the Razorpay webhook lands
  */
-export function SuccessEffects({ pending }: { pending: boolean }) {
+export function SuccessEffects({ pending }: Readonly<{ pending: boolean }>) {
   const { clear } = useCart();
   const router = useRouter();
   const cleared = useRef(false);

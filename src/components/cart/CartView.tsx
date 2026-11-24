@@ -1,176 +1,123 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useCart } from "./CartProvider";
+import { useCartDetails } from "./useCartDetails";
 import { QuantityStepper } from "./QuantityStepper";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import { ProductImage } from "@/components/product/ProductImage";
-import { FormMessage } from "@/components/ui/FormMessage";
+import { CashIcon, LockIcon, ReceiptIcon, ReturnIcon, TruckIcon } from "@/components/layout/Icons";
 import { button } from "@/components/ui/styles";
-import { getCartDetailsAction } from "@/lib/cart/actions";
-import type { CartLineDetails } from "@/lib/cart/types";
-import { MAX_QTY_PER_ITEM } from "@/lib/config";
-import { formatPrice } from "@/lib/format";
+import { MAX_QTY_PER_ITEM, PREPAID_DISCOUNT_RATE, RETURN_DAYS } from "@/lib/config";
 
 export function CartView() {
-  const { lines, isLoggedIn, setQuantity, remove } = useCart();
-  // Product details keyed by the cart contents they were fetched for.
-  const [details, setDetails] = useState<{ key: string; items: CartLineDetails[] } | null>(null);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [redirecting, setRedirecting] = useState(false);
-
-  const key = lines.map((l) => `${l.productId}:${l.quantity}`).join(",");
-
-  // Load fresh prices/stock from the server whenever the cart changes.
-  useEffect(() => {
-    let cancelled = false;
-    getCartDetailsAction(lines)
-      .then((items) => !cancelled && setDetails({ key, items }))
-      .catch(() => !cancelled && setDetails({ key, items: [] }));
-    return () => {
-      cancelled = true;
-    };
-    // `key` captures the relevant content of `lines`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  const { setQuantity, remove, isLoggedIn, isPending } = useCart();
+  const { money } = useLocale();
+  const { lines, items, loading, subtotal, prepaidDiscount, unavailable, overStock, canCheckout } = useCartDetails();
 
   if (lines.length === 0) {
     return (
-      <div className="py-16 text-center">
-        <p className="font-serif text-3xl text-saddle">Your bag is empty</p>
-        <p className="mt-3 text-sm text-muted">Find something you&apos;ll carry for years.</p>
+      <div className="border border-line px-6 py-20 text-center sm:py-28">
+        <p className="font-display text-[clamp(2rem,5vw,3rem)] text-espresso">Your bag is waiting</p>
+        <p className="mx-auto mt-3 max-w-sm text-[17px] text-muted">Nothing here yet. Find the one you&apos;ll carry every day.</p>
         <Link href="/shop" className={`${button.primary} mt-8`}>
-          Continue shopping
+          Discover the collection
         </Link>
       </div>
     );
   }
 
-  const loading = !details;
-  const fresh = details?.key === key;
-  // Use quantities from the live cart (instant UI) and product data from the server.
-  const qtyById = new Map(lines.map((l) => [l.productId, l.quantity]));
-  const items = (details?.items ?? [])
-    .filter((i) => qtyById.has(i.productId))
-    .map((i) => ({ ...i, quantity: qtyById.get(i.productId)! }));
-  const subtotal = items.reduce((sum, i) => sum + i.priceCents * i.quantity, 0);
-  const unavailable = fresh ? lines.filter((l) => !items.some((i) => i.productId === l.productId)) : [];
-  const overStock = items.filter((i) => i.quantity > i.stock);
-  const canCheckout = fresh && items.length > 0 && overStock.length === 0 && unavailable.length === 0;
-
-  async function checkout() {
-    setCheckoutError(null);
-    setRedirecting(true);
-    try {
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: lines }),
-      });
-      const data: { url?: string; error?: string } = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error ?? "Checkout failed. Please try again.");
-      window.location.assign(data.url);
-    } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : "Checkout failed.");
-      setRedirecting(false);
-    }
-  }
-
   return (
-    <div className="grid gap-12 lg:grid-cols-[1fr_360px]">
-      <ul className="divide-y divide-sand border-y border-sand">
-        {loading && <li className="py-8 text-sm text-muted">Loading your bag…</li>}
-        {items.map((item) => (
-          <li key={item.productId} className="flex gap-4 py-6 sm:gap-6">
-            <Link href={`/products/${item.slug}`} className="w-24 shrink-0 sm:w-32">
-              <ProductImage src={item.imageUrl} alt={item.name} sizes="128px" className="rounded-sm" />
-            </Link>
-            <div className="flex flex-1 flex-col justify-between gap-3">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <Link href={`/products/${item.slug}`} className="font-serif text-xl text-espresso hover:text-cognac">
-                    {item.name}
-                  </Link>
-                  <p className="mt-1 text-sm text-muted">{formatPrice(item.priceCents)}</p>
-                  {item.quantity > item.stock && (
-                    <p className="mt-1 text-xs text-danger">
-                      {item.stock === 0 ? "Sold out — please remove." : `Only ${item.stock} available.`}
+    <div className="grid gap-12 lg:grid-cols-[1fr_380px] lg:gap-16">
+      <section aria-label="Items in your bag">
+        {loading && <p className="text-muted">Loading your bag…</p>}
+        <ul className="divide-y divide-line border-y border-line">
+          {items.map((i) => {
+            const max = Math.min(i.stock, MAX_QTY_PER_ITEM);
+            const ref = { productId: i.productId, variantId: i.variantId };
+            return (
+              <li key={i.variantId} className="flex gap-4 py-6 sm:gap-6">
+                <Link href={`/products/${i.slug}`} className="w-24 shrink-0 sm:w-32">
+                  <ProductImage src={i.imageUrl} alt={i.name} sizes="128px" zoom={false} />
+                </Link>
+                <div className="flex flex-1 flex-col">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <Link href={`/products/${i.slug}`} className="font-display text-[22px] leading-tight text-espresso hover:text-forest">
+                        {i.name}
+                      </Link>
+                      <p className="mt-1 flex items-center gap-2 text-sm text-muted">
+                        <span aria-hidden className="h-3 w-3 border border-espresso/20" style={{ backgroundColor: i.colourHex }} />
+                        {i.colourName}
+                      </p>
+                    </div>
+                    <p className="tabular text-[15px] text-espresso">{money(i.priceCents * i.quantity)}</p>
+                  </div>
+                  <div className="mt-auto flex items-center justify-between gap-4 pt-4">
+                    <QuantityStepper
+                      value={i.quantity}
+                      max={Math.max(max, i.quantity)}
+                      onChange={(q) => setQuantity(ref, q, max)}
+                      disabled={isPending && isLoggedIn}
+                      label={`${i.name}, ${i.colourName}`}
+                    />
+                    <button type="button" onClick={() => remove(ref)} className="min-h-11 text-sm text-muted underline underline-offset-4 hover:text-espresso">
+                      Remove
+                    </button>
+                  </div>
+                  {i.quantity > i.stock && (
+                    <p className="mt-2 text-sm text-danger">
+                      {i.stock === 0 ? "This colour has just sold out." : `Only ${i.stock} left. Please reduce the quantity.`}
                     </p>
                   )}
                 </div>
-                <p className="text-sm text-espresso tabular-nums">{formatPrice(item.priceCents * item.quantity)}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <QuantityStepper
-                  value={item.quantity}
-                  max={Math.max(item.quantity > item.stock ? item.quantity : 1, Math.min(item.stock, MAX_QTY_PER_ITEM))}
-                  onChange={(q) => setQuantity(item.productId, q, Math.min(item.stock, MAX_QTY_PER_ITEM))}
-                />
-                <button
-                  type="button"
-                  onClick={() => remove(item.productId)}
-                  className="text-xs uppercase tracking-wider text-muted hover:text-danger"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          </li>
-        ))}
-        {unavailable.map((l) => (
-          <li key={l.productId} className="flex items-center justify-between py-6 text-sm text-muted">
-            This item is no longer available.
-            <button type="button" onClick={() => remove(l.productId)} className="text-cognac hover:underline">
+              </li>
+            );
+          })}
+        </ul>
+        {unavailable.length > 0 && (
+          <p className="mt-4 text-sm text-danger">
+            {unavailable.length === 1 ? "One item is" : `${unavailable.length} items are`} no longer available and won&apos;t be ordered.{" "}
+            <button type="button" className="underline" onClick={() => unavailable.forEach((l) => remove(l))}>
               Remove
             </button>
-          </li>
-        ))}
-      </ul>
+          </p>
+        )}
+        <ul className="mt-10 grid gap-4 text-[14px] text-espresso sm:grid-cols-2">
+          <li className="flex items-center gap-3"><TruckIcon className="text-forest" /> Free delivery across India</li>
+          <li className="flex items-center gap-3"><ReturnIcon className="text-forest" /> Easy returns within {RETURN_DAYS} days</li>
+          <li className="flex items-center gap-3"><CashIcon className="text-forest" /> Cash on delivery available</li>
+          <li className="flex items-center gap-3"><ReceiptIcon className="text-forest" /> GST invoice with your order</li>
+        </ul>
+      </section>
 
-      <aside className="h-fit rounded-sm bg-ivory p-6 sm:p-8">
-        <h2 className="text-2xl text-espresso">Summary</h2>
-        <dl className="mt-6 space-y-3 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-muted">Subtotal</dt>
-            <dd className="tabular-nums">{loading ? "—" : formatPrice(subtotal)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-muted">Shipping</dt>
-            <dd>Free</dd>
-          </div>
-          <div className="flex justify-between border-t border-sand pt-3 text-base">
-            <dt>Total</dt>
-            <dd className="tabular-nums">{loading ? "—" : formatPrice(subtotal)}</dd>
-          </div>
+      <aside className="h-fit bg-ivory-deep p-6 sm:p-8 lg:sticky lg:top-28" aria-labelledby="bag-summary">
+        <h2 id="bag-summary" className="font-display text-[28px] leading-none text-espresso">Summary</h2>
+        <dl className="tabular mt-6 space-y-2.5 text-[15px]">
+          <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd>{loading ? "…" : money(subtotal)}</dd></div>
+          <div className="flex justify-between"><dt className="text-muted">Delivery</dt><dd>Free</dd></div>
+          <div className="flex justify-between border-t border-line pt-3 text-lg"><dt>Total</dt><dd>{loading ? "…" : money(subtotal)}</dd></div>
+          <p className="text-[13px] text-muted">Prices include GST.</p>
         </dl>
-
-        <div className="mt-6 space-y-3">
-          <FormMessage error={checkoutError} />
-          {isLoggedIn ? (
-            <button
-              type="button"
-              onClick={checkout}
-              disabled={!canCheckout || redirecting}
-              className={`${button.primary} w-full`}
-            >
-              {redirecting ? "Redirecting to payment…" : "Checkout"}
-            </button>
-          ) : (
-            <>
-              <Link href="/login?next=/cart" className={`${button.primary} w-full`}>
-                Log in to checkout
-              </Link>
-              <p className="text-center text-xs text-muted">
-                New here?{" "}
-                <Link href="/signup?next=/cart" className="text-cognac underline underline-offset-4">
-                  Create an account
-                </Link>
-                . Your bag will be saved.
-              </p>
-            </>
-          )}
-          <p className="text-center text-xs text-muted">Secure payment by Stripe. Prices include VAT.</p>
-        </div>
+        {prepaidDiscount > 0 && (
+          <p className="mt-5 border border-forest/30 bg-white/50 px-4 py-3 text-sm text-forest">
+            Pay online at checkout and save {money(prepaidDiscount)} ({Math.round(PREPAID_DISCOUNT_RATE * 100)}% off).
+          </p>
+        )}
+        {overStock.length > 0 && <p className="mt-4 text-sm text-danger">Please adjust the quantities marked above.</p>}
+        {canCheckout ? (
+          <Link href={isLoggedIn ? "/checkout" : "/login?next=/checkout"} className={`${button.primary} mt-6 w-full`}>
+            {isLoggedIn ? "Checkout" : "Sign in to checkout"}
+          </Link>
+        ) : (
+          <button type="button" disabled className={`${button.primary} mt-6 w-full`}>Checkout</button>
+        )}
+        <p className="mt-4 flex items-center justify-center gap-2 text-[13px] text-muted">
+          <LockIcon size={15} className="text-forest" /> Secure checkout · UPI, cards, netbanking, COD
+        </p>
+        <Link href="/shop" className="mt-5 block text-center text-sm text-forest underline decoration-gilt underline-offset-4">
+          Continue shopping
+        </Link>
       </aside>
     </div>
   );

@@ -5,50 +5,57 @@ import { useState } from "react";
 import { useCart } from "@/components/cart/CartProvider";
 import { button } from "@/components/ui/styles";
 import { MAX_QTY_PER_ITEM } from "@/lib/config";
-import { QuantityStepper } from "@/components/cart/QuantityStepper";
 
-export function AddToCart({ productId, stock }: { productId: string; stock: number }) {
+/** Add one colour of a bag to the bag. Quantity lives in the bag page. */
+export function AddToCart({
+  productId,
+  variantId,
+  stock,
+  colourName,
+}: Readonly<{ productId: string; variantId: string; stock: number; colourName: string }>) {
   const { add, lines } = useCart();
-  const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
 
-  const inCart = lines.find((l) => l.productId === productId)?.quantity ?? 0;
-  const maxAddable = Math.max(0, Math.min(stock, MAX_QTY_PER_ITEM) - inCart);
+  const inCart = lines.find((l) => l.variantId === variantId)?.quantity ?? 0;
+  const max = Math.min(stock, MAX_QTY_PER_ITEM);
+  const canAdd = inCart < max;
 
   if (stock <= 0) {
     return (
-      <button type="button" disabled className={`${button.primary} w-full`}>
-        Sold out
-      </button>
+      <div>
+        <button type="button" disabled className={`${button.primary} w-full`}>
+          {colourName}: back soon
+        </button>
+        <p className="mt-3 text-sm text-muted">This colour is being remade. Choose another colour, or ask us when it returns.</p>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <QuantityStepper value={Math.min(qty, Math.max(1, maxAddable))} max={Math.max(1, maxAddable)} onChange={setQty} />
-        <button
-          type="button"
-          disabled={maxAddable === 0}
-          onClick={() => {
-            add(productId, Math.min(qty, maxAddable), Math.min(stock, MAX_QTY_PER_ITEM));
-            setAdded(true);
-            setQty(1);
-            setTimeout(() => setAdded(false), 2500);
-          }}
-          className={`${button.primary} flex-1`}
-        >
-          {maxAddable === 0 ? "Maximum in bag" : added ? "Added ✓" : "Add to bag"}
-        </button>
-      </div>
-      {added && (
-        <p className="text-sm text-saddle" role="status">
-          Added to your bag.{" "}
-          <Link href="/cart" className="text-cognac underline underline-offset-4">
-            View bag
-          </Link>
-        </p>
-      )}
+    <div>
+      <button
+        type="button"
+        disabled={!canAdd}
+        onClick={() => {
+          add({ productId, variantId }, 1, max);
+          setAdded(true);
+          window.setTimeout(() => setAdded(false), 3000);
+        }}
+        className={`${button.primary} w-full`}
+      >
+        {canAdd ? (added ? "Added to your bag" : "Add to bag") : "All available pieces are in your bag"}
+      </button>
+      <p className="mt-3 min-h-6 text-sm text-muted" role="status" aria-live="polite">
+        {added && (
+          <>
+            {colourName} is in your bag.{" "}
+            <Link href="/cart" className="text-forest underline decoration-gilt underline-offset-4">
+              View bag
+            </Link>
+          </>
+        )}
+        {!added && stock <= 3 && `Only ${stock} left in ${colourName}.`}
+      </p>
     </div>
   );
 }

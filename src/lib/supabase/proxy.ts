@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
 /** Routes that need a logged-in user. */
-const PROTECTED_PREFIXES = ["/account", "/admin"];
+const PROTECTED_PREFIXES = ["/account", "/admin", "/checkout"];
 
 /**
  * Runs on every page request (see src/proxy.ts):

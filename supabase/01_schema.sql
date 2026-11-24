@@ -1,5 +1,5 @@
 -- =============================================================================
--- Bagora — 01_schema.sql
+-- VÉRANE — 01_schema.sql
 -- Tables, indexes, helper functions and triggers.
 -- Run this FIRST in the Supabase SQL Editor (Dashboard -> SQL Editor -> New query).
 -- Safe to re-run: objects are created only if they don't exist / replaced.

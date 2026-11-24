@@ -1,19 +1,19 @@
+import { STATUS_LABEL } from "@/lib/orders";
 import type { OrderStatus } from "@/types/database";
 
 const styles: Record<OrderStatus, string> = {
-  pending: "bg-sand text-saddle",
-  paid: "bg-success/10 text-success",
-  shipped: "bg-tan/25 text-cognac-dark",
-  delivered: "bg-espresso text-cream",
-  cancelled: "bg-danger/10 text-danger",
+  pending: "border-line text-muted",
+  confirmed: "border-forest/40 text-forest",
+  paid: "border-success/40 text-success",
+  shipped: "border-gilt text-gilt-ink",
+  delivered: "border-forest bg-forest text-ivory",
+  cancelled: "border-danger/40 text-danger",
 };
 
-export function StatusBadge({ status }: { status: OrderStatus }) {
+export function StatusBadge({ status, label }: Readonly<{ status: OrderStatus; label?: string }>) {
   return (
-    <span
-      className={`inline-block rounded-full px-3 py-1 text-xs font-medium capitalize tracking-wide ${styles[status]}`}
-    >
-      {status}
+    <span className={`plate-label inline-block border px-2.5 py-1 text-[10px] ${styles[status]}`}>
+      {label ?? STATUS_LABEL[status]}
     </span>
   );
 }

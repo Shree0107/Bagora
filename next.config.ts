@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    // AVIF first (smallest), WebP fallback. Next resizes per device and lazy-loads by default.
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     // Product images uploaded by admins live in Supabase Storage.
     remotePatterns: [
       {
@@ -23,6 +26,10 @@ const nextConfig: NextConfig = {
         pathname: "/storage/v1/object/public/**",
       },
     ],
+  },
+
+  async redirects() {
+    return [{ source: "/shop/backpacks", destination: "/shop/work-bags", permanent: true }];
   },
 
   experimental: {

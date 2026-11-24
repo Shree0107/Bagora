@@ -1,5 +1,5 @@
 -- =============================================================================
--- Bagora — 04_seed.sql
+-- VÉRANE — 04_seed.sql
 -- The 3 categories + 6 sample products matching the images in /images.
 -- Run LAST. Safe to re-run (existing rows with the same slug are updated).
 --

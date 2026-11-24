@@ -1,56 +1,228 @@
 @import "tailwindcss";
 
 /*
- * Bagora theme tokens.
- * Change a hex value here and every `bg-*`, `text-*`, `border-*` utility that
- * uses it updates across the whole site (e.g. `bg-cream`, `text-espresso`).
+ * VÉRANE design tokens.
+ * Change a value here and every utility that uses it updates site-wide
+ * (bg-forest, text-espresso, border-gilt, font-display, …). See SETUP.md →
+ * "Changing colours and fonts".
  */
 @theme {
-  /* Backgrounds & surfaces */
-  --color-cream: #faf6f0; /* page background */
-  --color-ivory: #f3ece2; /* cards, panels */
-  --color-sand: #e7dccd; /* borders, dividers */
+  /* Façade: the painted boutique front (header, window frame, footer, bands) */
+  --color-forest: #1f3a2e;
+  --color-forest-deep: #16291f;
+  --color-forest-soft: #2b4a3c;
 
-  /* Leather accents */
-  --color-tan: #c9a27e; /* subtle accents, hover */
-  --color-cognac: #9a4e1c; /* primary buttons, links */
-  --color-cognac-dark: #7a3d15; /* primary hover */
-  --color-saddle: #6f4e37; /* secondary headings */
+  /* Gilt: lettering, mouldings, hairlines. Never small text on ivory (2:1). */
+  --color-gilt: #c9a96e;
+  --color-gilt-ink: #7d6234; /* gilt-toned TEXT on ivory (5.1:1) */
+  --color-gilt-pale: #e6d6b4;
+
+  /* Interior: ivory shelving */
+  --color-ivory: #f5f1eb;
+  --color-ivory-deep: #ece5da;
+  --color-plinth: #e4dbcd;
+  --color-line: #ddd3c4;
 
   /* Text */
-  --color-espresso: #2e211a; /* main text, footer */
-  --color-muted: #7d6b5d; /* captions, helper text */
+  --color-espresso: #3b2a20;
+  --color-muted: #6e5f54; /* 5.4:1 on ivory */
+  --color-sage: #b9c4bc; /* secondary text on forest (6.9:1) */
 
-  /* Status colours (admin + order badges) */
+  /* Status */
   --color-success: #4f6b3a;
-  --color-danger: #a23b2a;
+  --color-danger: #a3402b;
 
-  /* Fonts are provided by next/font in layout.tsx */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Legacy names (admin/auth screens): mapped onto the VÉRANE palette */
+  --color-cream: var(--color-ivory);
+  --color-sand: var(--color-line);
+  --color-tan: var(--color-gilt);
+  --color-cognac: var(--color-forest);
+  --color-cognac-dark: var(--color-forest-deep);
+  --color-saddle: var(--color-espresso);
+
+  /* Fonts (loaded by next/font in layout.tsx) */
+  --font-sans: var(--font-jost), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-cormorant), ui-serif, Georgia, serif;
   --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+
+  /* Motion */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    scroll-padding-top: 5rem;
+    scrollbar-color: var(--color-line) var(--color-ivory);
   }
 
   body {
-    background-color: var(--color-cream);
+    background-color: var(--color-ivory);
     color: var(--color-espresso);
     font-family: var(--font-sans);
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    line-height: 1.65;
+    text-rendering: optimizeLegibility;
+    font-kerning: normal;
+    caret-color: var(--color-forest);
   }
 
   h1,
   h2,
   h3 {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+  h3 {
     font-weight: 500;
-    letter-spacing: -0.01em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  a {
+    text-underline-offset: 0.25em;
+    text-decoration-thickness: 1px;
   }
 
   ::selection {
-    background-color: var(--color-tan);
+    background-color: var(--color-gilt-pale);
+    color: var(--color-forest-deep);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-gilt-ink);
+    outline-offset: 3px;
+  }
+
+  /* Tabular numerals wherever prices line up */
+  .tabular {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+}
+
+@layer components {
+  /* The gilt moulding: a hairline with a finer inner line, as on a painted shopfront. */
+  .moulding {
+    border-block: 1px solid var(--color-gilt);
+    box-shadow:
+      inset 0 3px 0 -2px color-mix(in oklab, var(--color-gilt) 45%, transparent),
+      inset 0 -3px 0 -2px color-mix(in oklab, var(--color-gilt) 45%, transparent);
+  }
+
+  /* Window frame around shop-window imagery: forest joinery + gilt bead. */
+  .window-frame {
+    border: 10px solid var(--color-forest-deep);
+    outline: 1px solid var(--color-gilt);
+    outline-offset: -11px;
+  }
+
+  /* Reading column for help & legal pages */
+  .prose-verane {
+    max-width: 68ch;
+    font-size: 16.5px;
+    line-height: 1.75;
     color: var(--color-espresso);
+  }
+  .prose-verane h2 {
+    margin-top: 3rem;
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    color: var(--color-espresso);
+  }
+  .prose-verane h2:first-child {
+    margin-top: 0;
+  }
+  .prose-verane h3 {
+    margin-top: 2rem;
+    font-size: 1.35rem;
+  }
+  .prose-verane p,
+  .prose-verane ul,
+  .prose-verane ol {
+    margin-top: 1rem;
+  }
+  .prose-verane ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+  .prose-verane ol {
+    list-style: decimal;
+    padding-left: 1.25rem;
+  }
+  .prose-verane li::marker {
+    color: var(--color-gilt-ink);
+  }
+  .prose-verane a {
+    color: var(--color-forest);
+    text-decoration: underline;
+    text-decoration-color: var(--color-gilt);
+  }
+  .prose-verane .note {
+    margin-top: 2rem;
+    border: 1px dashed var(--color-gilt);
+    padding: 1rem 1.25rem;
+    font-size: 14px;
+    color: var(--color-muted);
+  }
+
+  /* Signage lettering */
+  .sign {
+    font-family: var(--font-display);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+  }
+
+  /* Small tracked labels (buttons, nav) */
+  .plate-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.24em;
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Lettering on the shop window settles in on load (CSS only: no flash, no JS needed). */
+@keyframes letter-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .letter-in {
+    animation: letter-in 1100ms var(--ease-out-quint) both;
+    animation-delay: calc(var(--i, 0) * 110ms + 150ms);
+  }
+}
+
+@media print {
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
   }
 }

@@ -1,5 +1,5 @@
 -- =============================================================================
--- Bagora — 03_storage.sql
+-- VÉRANE — 03_storage.sql
 -- Storage bucket for product images uploaded from the admin panel.
 -- Run AFTER 02_rls_policies.sql (it uses public.is_admin()).
 --

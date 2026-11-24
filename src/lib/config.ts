@@ -1,18 +1,23 @@
-/** Store-wide settings. Change them here in one place. */
+/** Store-wide settings. Currency/GST live in lib/markets.ts, shipping in lib/shipping.ts. */
 
-export const STORE_NAME = "Bagora";
-export const CURRENCY = "eur";
-export const LOCALE = "en-IE"; // formats euros as "€189.00"
+export const STORE_NAME = "VÉRANE";
+export const STORE_TAGLINE = "Véritablement vôtre";
+export const STORE_TAGLINE_EN = "Truly yours";
 
-/** Max quantity of a single product per order. */
+/** Max quantity of a single colour of a bag per order. */
 export const MAX_QTY_PER_ITEM = 10;
 
-/** Countries Stripe Checkout accepts shipping addresses for (free shipping). */
-export const SHIPPING_COUNTRIES = [
-  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU",
-  "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES",
-  "SE", "GB", "US",
-] as const;
+/**
+ * Discount for paying online (Razorpay) instead of Cash on Delivery.
+ * 0.05 = 5% of the subtotal, rounded to the nearest rupee.
+ */
+export const PREPAID_DISCOUNT_RATE = 0.05;
+
+/** Returns window shown to customers (days after delivery). */
+export const RETURN_DAYS = 7;
+
+/** Instagram handle without the @. */
+export const INSTAGRAM_HANDLE = "laveraneparis";
 
 /** Name of the Supabase Storage bucket for product images (see 03_storage.sql). */
 export const PRODUCT_IMAGES_BUCKET = "product-images";

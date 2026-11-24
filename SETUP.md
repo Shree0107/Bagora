@@ -1,4 +1,4 @@
-# Bagora — Setup guide
+# HouseOfSV — Setup guide
 
 This guide takes you from an empty computer to a live store. Follow the steps in order. Each step says **where to click** and **what to copy**.
 
@@ -27,6 +27,7 @@ You'll need about an hour the first time.
 9. [Deploy to Vercel](#9-deploy-to-vercel)
 10. [Switch Stripe to live mode](#10-switch-stripe-to-live-mode)
 11. [Troubleshooting](#11-troubleshooting)
+12. [France & India markets (Razorpay, prices, shipping)](#12-france--india-markets)
 
 ---
 
@@ -53,7 +54,7 @@ You'll need about an hour the first time.
    ```bash
    npm run dev
    ```
-6. Open <http://localhost:3000>. Until you fill in the Supabase keys, you'll see a **"Bagora is almost ready"** page. That's expected.
+6. Open <http://localhost:3000>. Until you fill in the Supabase keys, you'll see a **"HouseOfSV is almost ready"** page. That's expected.
 
 Useful commands:
 
@@ -105,6 +106,10 @@ You need three values. Paste them into `.env.local` as you go:
 | 2 | `supabase/02_rls_policies.sql` | Row Level Security rules (who can read and change what) |
 | 3 | `supabase/03_storage.sql` | The `product-images` storage bucket and its rules |
 | 4 | `supabase/04_seed.sql` | The 3 categories and 6 sample products |
+| 5 | `supabase/05_markets.sql` | France/India markets: INR prices, French texts, payment fields, order locks, rate limiting |
+| 6 | `supabase/06_backpacks.sql` | The Backpacks category and the City Leather Backpack (3 photos) |
+
+> **Upgrading an existing store?** Run `05_markets.sql` **before** deploying the code that uses it. It back-fills existing orders as France / EUR / Stripe.
 
 All four files are safe to run again if something goes wrong halfway.
 
@@ -151,7 +156,7 @@ Go to **Authentication → Emails → Templates** (*Email Templates* in some das
   <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Choose a new password</a></p>
   ```
 
-You can also change the subject lines and wording to match the Bagora tone.
+You can also change the subject lines and wording to match the HouseOfSV tone.
 
 ### 3d. Sending real emails (before going live)
 
@@ -159,7 +164,7 @@ Supabase's built-in email sender is for **testing only**. It sends just a few em
 
 1. Create an account with an email provider such as [Resend](https://resend.com), [Postmark](https://postmarkapp.com) or [Brevo](https://www.brevo.com), and verify your domain there.
 2. In Supabase, go to **Authentication → Emails → SMTP Settings**, enable **Custom SMTP** and enter the host, port, username and password your provider gives you.
-3. Set the **Sender email** to something like `hello@yourdomain.com` and the **Sender name** to `Bagora`.
+3. Set the **Sender email** to something like `hello@yourdomain.com` and the **Sender name** to `HouseOfSV`.
 
 ---
 
@@ -269,6 +274,11 @@ SUPABASE_SECRET_KEY=sb_secret_...
 # Stripe (steps 6a and 6b)
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Razorpay (India market, step 12)
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=...
+RAZORPAY_WEBHOOK_SECRET=...
 ```
 
 | Variable | Secret? | Notes |
@@ -279,6 +289,11 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 | `SUPABASE_SECRET_KEY` | **Yes** | Server only. Used to create orders and handle webhooks |
 | `STRIPE_SECRET_KEY` | **Yes** | Server only |
 | `STRIPE_WEBHOOK_SECRET` | **Yes** | Server only. Proves webhook calls really come from Stripe |
+| `RAZORPAY_KEY_ID` | No | Server variable; sent to the browser only to open Razorpay Checkout |
+| `RAZORPAY_KEY_SECRET` | **Yes** | Server only. Creates Razorpay orders and verifies payment signatures |
+| `RAZORPAY_WEBHOOK_SECRET` | **Yes** | Server only. The secret you typed when creating the Razorpay webhook |
+
+> Checkout for a market stays switched off (with a friendly message) until that market's payment keys are set: France needs both Stripe keys, India all three Razorpay keys.
 
 Then restart the server: press **Ctrl + C**, then run `npm run dev`.
 
@@ -337,12 +352,13 @@ Before clicking **Deploy**, open **Environment Variables** and add all six:
 
 | Name | Value |
 |---|---|
-| `NEXT_PUBLIC_SITE_URL` | `https://bagora.vercel.app` (your Vercel URL, or custom domain; no trailing slash). If you don't know it yet, deploy first, then update this and redeploy |
+| `NEXT_PUBLIC_SITE_URL` | `https://houseofsv.vercel.app` (your Vercel URL, or custom domain; no trailing slash). If you don't know it yet, deploy first, then update this and redeploy |
 | `NEXT_PUBLIC_SUPABASE_URL` | same as `.env.local` |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | same as `.env.local` |
 | `SUPABASE_SECRET_KEY` | same as `.env.local` |
 | `STRIPE_SECRET_KEY` | `sk_test_…` for now |
 | `STRIPE_WEBHOOK_SECRET` | the **production** endpoint secret from step 6c (**not** the `stripe listen` one) |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` | from step 12 (test keys first) |
 
 Click **Deploy**.
 
@@ -392,7 +408,7 @@ Only do this when you're ready to take real money.
 
 | Problem | Likely cause and fix |
 |---|---|
-| **"Bagora is almost ready"** page | The Supabase variables are missing. Fill in `.env.local` (step 7) and restart `npm run dev`. On Vercel: add the variables, then **redeploy**. |
+| **"HouseOfSV is almost ready"** page | The Supabase variables are missing. Fill in `.env.local` (step 7) and restart `npm run dev`. On Vercel: add the variables, then **redeploy**. |
 | **"Something went wrong"** on every page | Wrong Supabase URL or key, or the SQL files weren't run. Check the terminal running `npm run dev` for the real error. Make sure `01`–`04` all ran successfully. |
 | Shop is empty | `04_seed.sql` wasn't run, or the products are hidden (`is_active = false`). |
 | `relation "public.profiles" does not exist` when running SQL | Run the files in order: `01_schema.sql` first. |
@@ -412,14 +428,116 @@ Only do this when you're ready to take real money.
 | Uploaded image doesn't display (**"hostname is not configured"**) | Images must come from your `*.supabase.co` Storage. If you use a custom Supabase domain, add it to `images.remotePatterns` in `next.config.ts`. |
 | Product images don't show on the Stripe page | Stripe can only show images from public `https://` URLs, so this is normal on localhost. It works after deploying. |
 | Changed an env variable on Vercel but nothing changed | Redeploy. `NEXT_PUBLIC_` variables are only read at build time. |
+| Checkout says "Online payment for India/France isn't available yet" | That market's payment keys are missing (steps 7 and 12). Add them, then restart or redeploy. |
+| `column "price_inr_paise" does not exist` or `function confirm_order_payment does not exist` | Run `supabase/05_markets.sql` (step 2c). |
+| A product doesn't appear in the India shop | It has no India price. Set one in **Admin → Products → Edit → India price**. |
+| India: paid, but the order stays "pending" | Check **Razorpay Dashboard → Webhooks** for failed deliveries (URL, secret, events). The verify step and the webhook both confirm orders; either one is enough. |
+| India: "This PIN code doesn't match the selected state" | The first digit of an Indian PIN code identifies its region. Check that the state matches the PIN. |
+| France: postcode rejected | Only mainland France and Corsica (01000–95999) are delivered to. Overseas territories (97xxx/98xxx) are a different shipping zone. |
+| Admin: "Status not changed: … has no confirmed payment" | An order can only be marked paid, shipped or delivered after the payment provider has confirmed the payment. This is intentional. |
 | `npm run build` fails with a type error after changing the database | Update `src/types/database.ts` to match, or regenerate it with `npx supabase gen types typescript --project-id <your-ref> > src/types/database.ts`. |
 | Port 3000 is already in use | Another server is running. Stop it, or run `npm run dev -- -p 3001` (and use that port in `NEXT_PUBLIC_SITE_URL` and `stripe listen`). |
 
 ---
 
+## 12. France & India markets
+
+The store sells to two **shopping destinations**:
+
+| | France 🇫🇷 | India 🇮🇳 |
+|---|---|---|
+| Currency | EUR (€) | INR (₹) |
+| Languages | French + English | English |
+| Delivers to | Mainland France + Corsica only | India only |
+| Payments | Stripe (cards, Apple Pay, Google Pay…) | Razorpay (UPI, cards, net banking, wallets) |
+
+**How customers choose:**
+- On their first visit, a banner asks them to pick a destination. Their location is only used to *suggest* one; nothing is saved until they click.
+- They can change destination (and, for France, language) at any time from the flag in the header.
+- Regional links also work: `https://your-domain/in/shop` opens the shop with India selected, and `https://your-domain/fr` opens it with France selected.
+- Every order is locked to the market and currency it was paid in.
+
+**Addresses are checked twice:** once on the checkout page and again on the server.
+- A France order must have a French address: postcode 01000–95999 and a French phone number.
+- An India order must have an Indian address: a valid state, a 6-digit PIN code that matches that state, and a 10-digit mobile number.
+- To deliver elsewhere, a customer must change their destination first.
+
+### 12a. Prices for each market
+
+Each product has **two independent prices**. They are not converted with an exchange rate, so you decide each price and it never changes on its own:
+
+- **France price (€, VAT included):** the existing price.
+- **India price (₹, GST included):** set it in **Admin → Products → Edit**. Leave it empty to not sell that product in India.
+
+> ⚠️ `05_markets.sql` gives the 6 sample products **placeholder** INR prices. Replace them with your real prices before launch.
+
+### 12b. Shipping and delivery times
+
+Shipping methods and rates live in `src/lib/shipping.ts`, one list per market.
+- Both markets currently offer **free standard delivery**.
+- To charge for shipping, set `amount` (in cents for EUR, paise for INR; e.g. `14900` = ₹149). Use `freeOver` to make shipping free above a subtotal.
+- `estimate` is `null` on purpose. Customers then see "Delivery time confirmed when your order ships". Only add delivery times your carrier has confirmed.
+
+The server always recalculates shipping. The browser never sends a shipping price.
+
+### 12c. Taxes
+
+Prices include tax, and each order records the tax portion: France VAT 20%, India GST 18%.
+- The rates are in `src/lib/markets.ts` (`includedTaxRate`).
+- ⚠️ **Confirm the GST rate for your products (by their HSN code) with your accountant.** Also check whether you need GST registration and invoicing before selling in India.
+
+### 12d. Razorpay: eligibility (read this first)
+
+To accept real payments with Razorpay you need:
+- **an Indian business entity** (a sole proprietorship, partnership, LLP or company, registered in India) with a business **PAN**;
+- **an Indian bank account** in the business's name, where payouts are sent;
+- a **website** showing your business details, prices, and contact, terms, privacy, refund and shipping policies;
+- to complete Razorpay's **KYC / account activation** in the dashboard.
+
+A business registered only outside India (e.g. only in France) generally **cannot** open a standard Razorpay account. Check Razorpay's current requirements with their team before you rely on it. You **can** use **Test Mode** right away to build and test, before activation.
+
+### 12e. Razorpay: keys and webhook
+
+1. Sign up at <https://dashboard.razorpay.com/signup> and switch to **Test Mode** (toggle at the top).
+2. **Account & Settings → API Keys → Generate Test Key.** Copy the **Key Id** (`rzp_test_…`) into `RAZORPAY_KEY_ID` and the **Key Secret** into `RAZORPAY_KEY_SECRET`. The secret is shown only once.
+3. **Account & Settings → Webhooks → Add New Webhook:**
+   - **Webhook URL:** `https://your-domain/api/razorpay/webhook`. Razorpay must be able to reach it, so for local testing use a tunnel such as `ngrok http 3000` and its https URL.
+   - **Secret:** type a long random string, and put the same value in `RAZORPAY_WEBHOOK_SECRET`.
+   - **Active events:** `payment.authorized`, `payment.captured`, `payment.failed`, `order.paid`.
+4. **Payment capture:** the store captures authorised payments itself, so it works with either setting. Razorpay's default *automatic capture* setting is recommended.
+5. Restart `npm run dev` (or redeploy on Vercel) after adding the keys.
+
+**How an India payment is confirmed:** the server creates the Razorpay order with the amount from the database. After the customer pays, the browser sends Razorpay's response to `/api/razorpay/verify`. The server then:
+1. checks the **signature** with your Key Secret;
+2. **fetches the payment from Razorpay** and checks the amount, currency and order;
+3. marks the order paid.
+
+The webhook does the same independently, in case the customer closes the tab. Neither path trusts the browser, and confirming twice has no effect.
+
+### 12f. Test an India purchase
+
+1. Choose **India** in the header (or open `/in`), add a bag that has an India price, then **Checkout**.
+2. Enter an Indian address, e.g. *12 MG Road, Bengaluru, Karnataka, 560001, mobile 9876543210*.
+3. In the Razorpay window, pay with a test method:
+   - **UPI:** `success@razorpay` (succeeds) or `failure@razorpay` (fails);
+   - **Card:** use one of the test cards listed in Razorpay's docs (*Test Card Details*), any future expiry and any CVV.
+4. You land on the confirmation page. In **Admin → Orders → 🇮🇳 India**, the order shows **Razorpay · paid** with the method used, and the stock has gone down.
+
+### 12g. Razorpay live mode
+
+Once your account is activated:
+1. Generate **Live** keys.
+2. Create a webhook **in Live mode** with the same URL and events, and a new secret.
+3. Update the three `RAZORPAY_*` variables on Vercel and redeploy.
+4. Make one small real purchase and refund it from the Razorpay dashboard.
+
+---
+
 ## How it fits together (for reference)
 
-- **Prices are never trusted from the browser.** The cart only sends product IDs and quantities. `/api/checkout` loads the real prices and stock from the database, creates a `pending` order, and only then creates the Stripe Checkout session.
-- **Orders become paid only through the webhook.** `/api/stripe/webhook` verifies Stripe's signature, then calls the `mark_order_paid` database function. In one step, that function marks the order paid, reduces stock and removes the bought items from the customer's saved bag. It's safe if Stripe sends the same event twice.
+- **Prices are never trusted from the browser.** The checkout only sends product IDs, quantities, the address and the chosen shipping method. `/api/checkout` checks that the market hasn't changed, validates the address for that market, loads the real prices and stock in the market's currency, creates a `pending` order, and only then creates the Stripe (France) or Razorpay (India) payment.
+- **No duplicate orders.** Each checkout attempt has a unique key, so double clicks return the same order. Checkout and payment verification are also rate-limited.
+- **Orders become paid only after server-side verification:** Stripe's signed webhook (plus a server check on the confirmation page), or Razorpay's signature + API check + signed webhook. Every path calls the `confirm_order_payment` database function. It re-checks the provider, amount and currency, then in one step marks the order paid, reduces stock and removes the bought items from the saved bag. Running it twice has no effect.
+- **Paid orders are locked.** The database refuses changes to a paid order's market, currency, amounts or address. Admins can only change the fulfilment status.
 - **Row Level Security** is on for every table. Visitors can only read active products; customers can only see their own cart and orders; only admins can change products and order statuses. Orders can't be created from the browser at all.
 - **Guest carts** are stored in the browser (localStorage). After login they're merged into the `cart_items` table, so the bag follows the customer across devices.

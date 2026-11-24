@@ -3,12 +3,14 @@ import Link from "next/link";
 import { container } from "@/components/ui/styles";
 import { requireAdmin } from "@/lib/auth";
 
-export const metadata: Metadata = { title: { default: "Admin", template: "%s · Admin · Bagora" }, robots: { index: false } };
+export const metadata: Metadata = { title: { default: "Admin", template: "%s · Admin · VÉRANE" }, robots: { index: false } };
 
 const links = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/products", label: "Products" },
   { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/reviews", label: "Reviews" },
+  { href: "/admin/messages", label: "Messages & newsletter" },
 ];
 
 /** Every page under /admin requires role = 'admin' (non-admins get a 404). */

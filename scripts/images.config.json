@@ -1,0 +1,21 @@
+{
+  "$comment": "Maps source photos in images/ to optimised WebP files in public/products/. fit: 'contain' = whole bag centred on the ivory 4:5 canvas (studio shots); 'cover' = crop to fill 4:5 (lifestyle shots). Run: npm run images",
+  "background": "#F5F1EB",
+  "width": 1600,
+  "height": 2000,
+  "quality": 80,
+  "images": [
+    { "src": "images/totebags/tote1.jpg", "out": "heritage-leather-tote-1", "fit": "contain" },
+    { "src": "images/totebags/tote2.jpg", "out": "buckle-slouch-tote-1", "fit": "contain" },
+    { "src": "images/crossbody bags/cross1.jpg", "out": "saddle-crossbody-1", "fit": "contain" },
+    { "src": "images/crossbody bags/cross2.avif", "out": "denim-satchel-crossbody-1", "fit": "contain" },
+    { "src": "images/shoulderbags/pic1.jpg", "out": "cherry-charm-shoulder-bag-1", "fit": "contain" },
+    { "src": "images/shoulderbags/pic2.jpg", "out": "blush-charm-shoulder-bag-1", "fit": "contain" },
+    { "src": "images/backpack/Gemini_Generated_Image_gwi704gwi704gwi7.jpg", "out": "city-leather-backpack-1", "fit": "contain" },
+    { "src": "images/backpack/Gemini_Generated_Image_bivm6bivm6bivm6b.jpg", "out": "city-leather-backpack-2", "fit": "cover" },
+    { "src": "images/backpack/Gemini_Generated_Image_80z94b80z94b80z9.jpg", "out": "city-leather-backpack-3", "fit": "cover" }
+  ],
+  "extras": [
+    { "$comment": "Hero: kept at its own aspect (no padding), max 2400px wide.", "src": "images/backpack/Gemini_Generated_Image_bivm6bivm6bivm6b.jpg", "out": "hero-1", "maxWidth": 2400 }
+  ]
+}
